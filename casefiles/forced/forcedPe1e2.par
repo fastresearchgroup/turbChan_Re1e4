@@ -1,0 +1,35 @@
+#Nek5000 parmeter file
+[GENERAL]
+startFrom = restart.f00010
+stopAt = numSteps
+numSteps = 1000000
+dt = 1e-3
+variableDT = yes
+#writeControl = numSteps
+writeInterval = 250000
+timeStepper = BDF2
+filtering = explicit
+filterWeight = 0.05
+#filterCutoffRatio = 0.95
+filterModes = 2
+dealiasing = yes
+#extrapolation = OIFS
+targetCFL = 3.0
+
+[MESH]
+writeToFieldFile = no
+
+[VELOCITY]
+viscosity = -10000.0
+density = 1.0
+residualTol = 1.0e-7
+residualProj = yes
+
+[PRESSURE]
+#preconditioner = semg_amg
+residualTol = 1.0e-5
+residualProj = yes
+
+[TEMPERATURE]
+conductivity = -10.0
+rhoCp = 1.0

@@ -1,0 +1,249 @@
+c-----------------------------------------------------------------------
+c  nek5000 user-file template
+c
+c  user specified routines:
+c     - uservp  : variable properties
+c     - userf   : local acceleration term for fluid
+c     - userq   : local source term for scalars
+c     - userbc  : boundary conditions
+c     - useric  : initial conditions
+c     - userchk : general purpose routine for checking errors etc.
+c     - userqtl : thermal divergence for lowMach number flows
+c     - usrdat  : modify element vertices
+c     - usrdat2 : modify mesh coordinates
+c     - usrdat3 : general purpose routine for initialization
+c
+c-----------------------------------------------------------------------
+c mesh dimensions
+#define BETAM 2.4     /* wall normal stretching parameter */
+#define PI (4.*atan(1.))
+#define XLEN (2.*PI)
+#define ZLEN PI
+#define NUMBER_ELEMENTS_X 16
+#define NUMBER_ELEMENTS_Y 12
+#define NUMBER_ELEMENTS_Z 8
+      include '../../../usrcode/utilities.f'
+      include '../../../usrcode/limits.f'
+c-----------------------------------------------------------------------
+      subroutine uservp(ix,iy,iz,eg) ! set variable properties
+
+      implicit none
+
+      integer ix,iy,iz,eg
+
+      include 'SIZE'
+      include 'TOTAL'
+      include 'NEKUSE'
+
+      integer e
+c     e = gllel(eg)
+
+      udiff  = 0.0
+      utrans = 0.0
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine userf(ix,iy,iz,eg) ! set acceleration term
+c
+c     Note: this is an acceleration term, NOT a force!
+c     Thus, ffx will subsequently be multiplied by rho(x,t).
+c
+      implicit none
+
+      integer ix,iy,iz,eg
+
+      include 'SIZE'
+      include 'TOTAL'
+      include 'NEKUSE'
+
+      integer e
+c     e = gllel(eg)
+
+      ffx = 0.0
+      ffy = temp
+      ffz = 0.0
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine userq(ix,iy,iz,eg) ! set source term
+
+      implicit none
+
+      include 'SIZE'
+      include 'TOTAL'
+      include 'NEKUSE'
+
+      integer ix,iy,iz,eg
+      integer e
+      real q_vol_periodic
+
+      e = gllel(eg)
+
+      qvol   = q_vol_periodic(ix,iy,iz,e,ifield)
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine userbc(ix,iy,iz,iside,eg) ! set up boundary conditions
+c
+c     NOTE ::: This subroutine MAY NOT be called by every process
+c
+      implicit none
+
+      include 'SIZE'
+      include 'TOTAL'
+      include 'NEKUSE'
+
+      integer ix,iy,iz,iside, eg
+c      if (cbc(iside,gllel(eg),ifield).eq.'v01')
+
+c      ux   = 0.0
+c      uy   = 0.0
+c      uz   = 0.0
+c      temp = 0.0
+
+      if (y.lt.0.5) flux = 1.0
+      if (y.gt.0.5) flux = 0.0
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine useric(ix,iy,iz,eg) ! set up initial conditions
+
+      implicit none
+
+      include 'SIZE'
+      include 'TOTAL'
+      include 'NEKUSE'
+
+      integer ix,iy,iz,eg
+
+      ux   = 1.0
+      uy   = 1.0
+      uz   = 1.0
+c      temp = 0.5
+
+c      integer idum
+c      save    idum 
+c      data    idum / 0 /
+
+c      real C, k, kx, ky
+
+c      real Re_tau, alpha, beta, eps, gamma, kz, yp !new var defines
+ 
+c      Re_tau = 550 
+c      C      = 5.17
+c      k      = 0.41
+
+c      yp = (1-y)*Re_tau
+c      if (y.lt.0) yp = (1+y)*Re_tau
+      
+      ! Reichardt function
+c      ux  = 1/k*log(1+k*yp) + (C - (1/k)*log(k)) *
+c     $      (1 - exp(-yp/11) - yp/11*exp(-yp/3))
+c      ux  = ux * Re_tau*0.5*(1/10000)
+
+c      eps = 1e-2
+c      kx  = 23
+c      kz  = 13
+
+c      alpha = kx * 2*PI/XLEN
+c      beta  = kz * 2*PI/ZLEN 
+
+      ! add perturbation to trigger turbulence 
+c      ux  = ux  + eps*beta  * sin(alpha*x)*cos(beta*z) 
+c      uy  =       eps       * sin(alpha*x)*sin(beta*z)
+c      uz  =      -eps*alpha * cos(alpha*x)*sin(beta*z)
+
+      ! thin boundary layer at the lower wall
+c      gamma = 5e-6 ! initial thickness
+c      temp = erfc((1+y)/sqrt(1./param(8) * gamma))
+      temp = 0.5
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine userchk()
+
+      implicit none
+
+      include 'SIZE'
+      include 'TOTAL'
+
+      integer n
+
+      n = nx1*ny1*nz1*nelt
+
+      call hpts()
+     
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine userqtl ! Set thermal divergence
+
+      implicit none
+
+      call userqtl_scig
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine usrdat()   ! This routine to modify element vertices
+
+      implicit none
+
+      include 'SIZE'
+      include 'TOTAL'
+
+      integer n, i
+      real xmin, ymin, zmin, xmax, ymax, zmax
+      real xscale, yscale, zscale, glmin, glmax
+
+      n = nelv * 2**ldim     !this to the endo are from the example case
+      xmin = glmin(xc, n)
+      xmax = glmax(xc, n)
+      ymin = glmin(yc, n)
+      ymax = glmax(yc, n)
+      zmin = glmin(zc, n)
+      zmax = glmax(zc, n)
+
+      xscale = XLEN/(xmax-xmin)
+      yscale = 1./(ymax-ymin)
+      zscale = ZLEN/(zmax-zmin)
+
+      do i=1,n
+           xc(i,1) = xscale*xc(i,1)
+           yc(i,1) = yscale*yc(i,1)
+           yc(i,1) = tanh(BETAM*(2*yc(i,1)-1))/tanh(BETAM)
+           zc(i,1) = zscale*zc(i,1)
+      enddo
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine usrdat2()  ! This routine to modify mesh coordinates
+
+      implicit none
+
+      include 'SIZE'
+      include 'TOTAL'
+
+      return
+      end
+c-----------------------------------------------------------------------
+      subroutine usrdat3()
+
+      implicit none
+      include 'SIZE'
+      include 'TOTAL'
+
+      param(54) = -3  ! use >0 for const flowrate or <0 bulk vel
+                      ! flow direction is given by (1=x, 2=y, 3=z)
+      param(55) = 1.0 ! flowrate/bulk-velocity
+      
+      call count_boundaries
+      
+      return
+      end
